@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Decision Flip 🪙</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap');
+  body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #4caf50, #1b5e20);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    color: #fff;
+    padding: 1rem;
+    user-select: none;
+  }
+  .container {
+    background: #222;
+    border-radius: 16px;
+    padding: 2rem 2.5rem;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 0 20px #1de9b6aa;
+    text-align: center;
+  }
+  h1 {
+    margin: 0 0 1rem 0;
+    font-weight: 700;
+    font-size: 2.4rem;
+    text-shadow: 0 2px 8px #0008;
+  }
+  input {
+    width: 100%;
+    padding: 0.9rem 1rem;
+    margin: 0.6rem 0;
+    border-radius: 12px;
+    border: none;
+    font-size: 1rem;
+    outline: none;
+    transition: box-shadow 0.3s ease;
+    box-shadow: 0 0 6px #1de9b6aa;
+    background: #121212;
+    color: #fff;
+  }
+  input:focus {
+    box-shadow: 0 0 12px #00ffb7;
+  }
+  button {
+    background: #1de9b6;
+    border: none;
+    border-radius: 14px;
+    padding: 1rem 2rem;
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: #004d40;
+    cursor: pointer;
+    margin-top: 1rem;
+    box-shadow: 0 6px 15px #00bfa5cc;
+    transition: background 0.3s ease, transform 0.2s ease;
+    user-select: none;
+  }
+  button:active {
+    transform: scale(0.95);
+  }
+  button:disabled {
+    background: #555;
+    cursor: not-allowed;
+    box-shadow: none;
+    color: #aaa;
+  }
+  .coin-container {
+    perspective: 900px;
+    margin: 2rem auto 1rem;
+    width: 140px;
+    height: 140px;
+  }
+  .coin {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ffefba, #ffffff);
+    box-shadow:
+      inset 0 5px 15px #fff8,
+      0 4px 8px #0006;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 2.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .coin.flipping {
+    animation: flip-spin 2.5s ease forwards;
+  }
+  .coin-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 3rem;
+    font-weight: 900;
+    user-select: none;
+    text-shadow: 0 0 5px #333;
+  }
+  .coin-front {
+    background: #fbc02d;
+    color: #6f4e37;
+    box-shadow: inset 0 0 15px #ffeb3baa;
+  }
+  .coin-back {
+    background: #607d8b;
+    color: #cfd8dc;
+    transform: rotateY(180deg);
+    box-shadow: inset 0 0 15px #90a4aeaa;
+  }
+  .result {
+    min-height: 3rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-top: 1rem;
+    min-height: 3rem;
+  }
+  @keyframes flip-spin {
+    0% {
+      transform: rotateY(0deg);
+    }
+    100% {
+      transform: rotateY(1440deg);
+    }
+  }
+</style>
+</head>
+<body>
+  <main class="container" role="main" aria-label="Decision Flip game">
+    <h1>Decision Flip 🪙</h1>
+    <input id="choiceA" type="text" placeholder="Option A (e.g., Quit my job)" aria-label="Option A" autocomplete="off" />
+    <input id="choiceB" type="text" placeholder="Option B (e.g., Keep working)" aria-label="Option B" autocomplete="off" />
+    <button id="flipBtn" aria-live="polite" aria-describedby="result" disabled>Enter choices above</button>
+
+    <div class="coin-container" aria-hidden="true">
+      <div class="coin" id="coin">
+        <div class="coin-face coin-front" aria-label="Heads (Option A)">A</div>
+        <div class="coin-face coin-back" aria-label="Tails (Option B)">B</div>
+      </div>
+    </div>
+    <div class="result" id="result" aria-live="polite" aria-atomic="true"></div>
+  </main>
+
+<script>
+  (() => {
+    const flipBtn = document.getElementById('flipBtn');
+    const choiceAInput = document.getElementById('choiceA');
+    const choiceBInput = document.getElementById('choiceB');
+    const resultDiv = document.getElementById('result');
+    const coin = document.getElementById('coin');
+
+    let stage = 0; // 0 = ask "What do you hope for?", 1 = reveal, 2 = reset
+    let choiceA = "";
+    let choiceB = "";
+
+    // Sounds
+    const flipSound = new Audio("data:audio/wav;base64,UklGRngAAABXQVZFZm10IBAAAAABAAEA..."); // placeholder silent sound
+    const clickSound = new Audio("data:audio/wav;base64,UklGRkAAAABXQVZFZm10IBAAAAABAAEA..."); // placeholder silent sound
+    // Since no external audio, we'll simulate sounds with Web Audio API below.
+
+    // Play a simple click sound (beep)
+    function playClick() {
+      const ctx = new AudioContext();
+      const oscillator = ctx.createOscillator();
+      oscillator.type = "square";
+      oscillator.frequency.setValueAtTime(600, ctx.currentTime);
+      oscillator.connect(ctx.destination);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 0.1);
+    }
+
+    // Play coin flip sound (rising beep)
+    function playFlipSound() {
+      const ctx = new AudioContext();
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      oscillator.type = "sawtooth";
+      oscillator.frequency.setValueAtTime(300, ctx.currentTime);
+      oscillator.frequency.linearRampToValueAtTime(1500, ctx.currentTime + 1.5);
+      gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      oscillator.start();
+      oscillator.stop(ctx.currentTime + 1.5);
+    }
+
+    function resetUI() {
+      flipBtn.textContent = "Flip Coin";
+      resultDiv.textContent = "";
+      coin.style.transform = "rotateY(0deg)";
+      coin.classList.remove("flipping");
+      stage = 0;
+    }
+
+    // Enable button only if both inputs have text
+    function validateInputs() {
+      if (choiceAInput.value.trim() && choiceBInput.value.trim()) {
+        flipBtn.disabled = false;
+        flipBtn.textContent = "Flip Coin";
+      } else {
+        flipBtn.disabled = true;
+        flipBtn.textContent = "Enter choices above";
+        resultDiv.textContent = "";
+        coin.style.transform = "rotateY(0deg)";
+        coin.classList.remove("flipping");
+        stage = 0;
+      }
+    }
+
+    choiceAInput.addEventListener('input', validateInputs);
+    choiceBInput.addEventListener('input', validateInputs);
+
+    flipBtn.addEventListener('click', () => {
+      playClick();
+      if (stage === 0) {
+        choiceA = choiceAInput.value.trim();
+        choiceB = choiceBInput.value.trim();
+        if (!choiceA || !choiceB) {
+          resultDiv.textContent = "Please enter two choices!";
+          return;
+        }
+        resultDiv.textContent = "🤔 What are you hoping it lands on?";
+        flipBtn.textContent = "Reveal Answer";
+        stage = 1;
+
+      } else if (stage === 1) {
+        const userKnows = confirm("Be honest... did you already know which one you wanted?");
+        if (userKnows) {
+          resultDiv.textContent = "😉 There’s your real answer.";
+          flipBtn.textContent = "Reset";
+          stage = 2;
+        } else {
+          // Animate coin flip
+          coin.classList.add("flipping");
+          playFlipSound();
+          flipBtn.disabled = true;
+          setTimeout(() => {
+            coin.classList.remove("flipping");
+            // Random result
+            const flip = Math.random() < 0.5 ? choiceA : choiceB;
+            resultDiv.textContent = `🪙 It landed on: ${flip}`;
+            flipBtn.textContent = "Reset";
+            flipBtn.disabled = false;
+            stage = 2;
+          }, 2500);
+        }
+
+      } else {
+        // Reset everything
+        choiceAInput.value = "";
+        choiceBInput.value = "";
+        validateInputs();
+        resultDiv.textContent = "";
+        flipBtn.textContent = "Enter choices above";
+        coin.style.transform = "rotateY(0deg)";
+        stage = 0;
+      }
+    });
+
+    validateInputs();
+  })();
+</script>
+</body>
+</html>
